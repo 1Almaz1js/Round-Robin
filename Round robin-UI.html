@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Robin CPU Scheduling UI</title>
+    <style>
+        body {
+            background-color: #3b3939;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 650px;
+            background: #111111;
+            padding: 25px 30px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        h2 {
+            margin-top: 0;
+            color: #4ade80;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .top-inputs {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            justify-content: space-between;
+        }
+        .top-inputs div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            font-size: 15px;
+            color: #ddd;
+        }
+        input {
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 15px;
+            border-radius: 5px;
+            width: 80px;
+            text-align: center;
+        }
+        input:focus {
+            border-color: #4ade80;
+            outline: none;
+        }
+        #processes-container {
+            margin-bottom: 20px;
+            border-top: 1px solid #222;
+            border-bottom: 1px solid #222;
+            padding: 15px 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .process-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+            justify-content: space-between;
+        }
+        .process-row label {
+            font-weight: bold;
+            color: #4ade80;
+            width: 50px;
+        }
+        .process-fields {
+            display: flex;
+            gap: 15px;
+        }
+        .process-fields div {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        button {
+            width: 100%;
+            background-color: #4ade80;
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #22c55e;
+        }
+        .metrics {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4ade80;
+            margin-bottom: 15px;
+            background: #181818;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4ade80;
+        }
+        h3 {
+            font-size: 15px;
+            color: #aaa;
+            margin: 15px 0 8px 0;
+        }
+        /* Диаграмма Ганта */
+        .gantt-chart {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+        .gantt-block {
+            background: #1a1a1a;
+            border: 1px solid #4ade80;
+            border-radius: 4px;
+            padding: 6px 10px;
+            text-align: center;
+            min-width: 50px;
+        }
+        .gantt-block .p-name {
+            font-weight: bold;
+            color: #4ade80;
+            font-size: 14px;
+        }
+        .gantt-block .p-time {
+            font-size: 12px;
+            color: #bbb;
+            margin-top: 2px;
+        }
+        /* Таблица результатов */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #333;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background: #1a1a1a;
+            color: #4ade80;
+        }
+        td {
+            background: #111;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Round Robin Scheduler</h2>
+
+    <div class="top-inputs">
+        <div>
+            <label for="n-input">Процессов (n):</label>
+            <input type="number" id="n-input" value="4" min="1" max="10" onchange="generateProcessInputs()">
+        </div>
+        <div>
+            <label for="quantum-input">Quantum (q):</label>
+            <input type="number" id="quantum-input" value="2" min="1">
+        </div>
+    </div>
+
+    <!-- Динамические поля для каждого процесса -->
+    <div id="processes-container"></div>
+
+    <button onclick="calculateRoundRobin()">Рассчитать</button>
+
+    <div id="results-section" style="display: none;">
+        <div class="metrics" id="metrics-output"></div>
+
+        <h3>Диаграмма Ганта:</h3>
+        <div class="gantt-chart" id="gantt-output"></div>
+
+        <h3>Таблица результатов:</h3>
+        <table> 
+            <thead>
+                <tr>
+                    <th>Процесс</th>
+                    <th>Arrival</th>
+                    <th>Burst</th>
+                    <th>TAT</th>
+                    <th>WT</th>
+                </tr>
+            </thead>
+            <tbody id="table-output"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const defaultArrivals = [0, 1, 2, 3];
+    const defaultBursts = [5, 3, 1, 2];
+
+    function generateProcessInputs() {
+        const n = parseInt(document.getElementById('n-input').value);
+        const container = document.getElementById('processes-container');
+        container.innerHTML = '';
+
+        for (let i = 0; i < n; i++) {
+            const processNum = i + 1; // Нумерация с 1 (P1, P2, P3...)
+            const arrVal = defaultArrivals[i] !== undefined ? defaultArrivals[i] : 0;
+            const burstVal = defaultBursts[i] !== undefined ? defaultBursts[i] : (i + 1);
+
+            const row = document.createElement('div');
+            row.className = 'process-row';
+            row.innerHTML = `
+                <label>P${processNum}:</label>
+                <div class="process-fields">
+                    <div>
+                        <span>Arrival</span>
+                        <input type="number" class="arrival-val" value="${arrVal}" min="0">
+                    </div>
+                    <div>
+                        <span>Burst</span>
+                        <input type="number" class="burst-val" value="${burstVal}" min="1">
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+    }
+
+    window.onload = generateProcessInputs;
+
+    function calculateRoundRobin() {
+        const arrivalInputs = document.querySelectorAll('.arrival-val');
+        const burstInputs = document.querySelectorAll('.burst-val');
+        const q = parseInt(document.getElementById('quantum-input').value);
+
+        const n = arrivalInputs.length;
+        let arri_time = Array.from(arrivalInputs, input => parseInt(input.value));
+        let burst = Array.from(burstInputs, input => parseInt(input.value));
+
+        let time = 0;
+        let completed = 0;
+        let remain = [...burst];
+        let comple_time = new Array(n).fill(0);
+        let visited = new Array(n).fill(false);
+        let queue = [];
+
+        for (let i = 0; i < n; i++) {
+            if (arri_time[i] === 0) {
+                visited[i] = true;
+                queue.push(i);
+            }
+        }
+
+        let gantt_steps = [];
+
+        while (completed < n) {
+            if (queue.length === 0) {
+                time++;
+                for (let i = 0; i < n; i++) {
+                    if (!visited[i] && arri_time[i] <= time) {
+                        visited[i] = true;
+                        queue.push(i);
+                    }
+                }
+                continue;
+            }
+
+            let current = queue.shift();
+            let start_time = time;
+
+            if (remain[current] > q) {
+                time += q;
+                remain[current] -= q;
+            } else {
+                time += remain[current];
+                remain[current] = 0;
+                completed++;
+                comple_time[current] = time;
+            }
+
+            gantt_steps.push({
+                process: `P${current + 1}`, // Отображение процесса с P1
+                start: start_time,
+                end: time
+            });
+
+            for (let i = 0; i < n; i++) {
+                if (!visited[i] && arri_time[i] <= time) {
+                    visited[i] = true;
+                    queue.push(i);
+                }
+            }
+
+            if (remain[current] > 0) {
+                queue.push(current);
+            }
+        }
+
+        let turn_time = comple_time.map((ct, i) => ct - arri_time[i]);
+        let wait_time = turn_time.map((tt, i) => tt - burst[i]);
+
+        let awt = wait_time.reduce((a, b) => a + b, 0) / n;
+        let avg_tat = turn_time.reduce((a, b) => a + b, 0) / n;
+
+        document.getElementById('metrics-output').textContent = 
+            `AWT: ${awt.toFixed(2)} | Avg TAT: ${avg_tat.toFixed(2)}`;
+
+        const ganttContainer = document.getElementById('gantt-output');
+        ganttContainer.innerHTML = '';
+        gantt_steps.forEach(step => {
+            const block = document.createElement('div');
+            block.className = 'gantt-block';
+            block.innerHTML = `
+                <div class="p-name">${step.process}</div>
+                <div class="p-time">${step.start}-${step.end}</div>
+            `;
+            ganttContainer.appendChild(block);
+        });
+
+        const tableBody = document.getElementById('table-output');
+        tableBody.innerHTML = '';
+        for (let i = 0; i < n; i++) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>P${i + 1}</td>
+                <td>${arri_time[i]}</td>
+                <td>${burst[i]}</td>
+                <td>${turn_time[i]}</td>
+                <td>${wait_time[i]}</td>
+            `;
+            tableBody.appendChild(tr);
+        }
+
+        document.getElementById('results-section').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
